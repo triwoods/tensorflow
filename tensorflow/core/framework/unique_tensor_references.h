@@ -1,4 +1,4 @@
-/* Copyright 2016 Google Inc. All Rights Reserved.
+/* Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,9 +18,10 @@ limitations under the License.
 
 #include <unordered_set>
 
+#include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor_reference.h"
 #include "tensorflow/core/lib/gtl/inlined_vector.h"
-#include "tensorflow/core/public/tensor.h"
+#include "tensorflow/core/platform/macros.h"
 
 namespace tensorflow {
 
@@ -32,76 +33,16 @@ namespace tensorflow {
 // references switches to using an unordered set.
 class UniqueTensorReferences {
  public:
-  UniqueTensorReferences() : frozen_(false) {}
+  UniqueTensorReferences() : frozen_(false), referenced_tensors_set_(nullptr) {}
 
-  ~UniqueTensorReferences() {
-    if (!frozen_) {
-      // The references were not retrieved so discard them to avoid
-      // leaking memory.
-      TensorReferenceVector refs;
-      FreezeAndReturnReferences(&refs);
-      for (auto& tensor : refs) {
-        tensor.Unref();
-      }
-    }
-  }
+  ~UniqueTensorReferences();
 
   // Adds a reference to tensor if its buffer is not already referenced.
-  void Add(const Tensor& tensor) {
-    DCHECK(!frozen_);
-    // Do nothing if the tensor has a null buffer.
-    if (tensor.IsInitialized()) {
-      if (referenced_tensors_set_.size() > 0) {
-        // There are enough tensors that we are using a hash set to
-        // de-duplicate.
-        const TensorReference tensor_ref(tensor);
-        if (!referenced_tensors_set_.insert(tensor_ref).second) {
-          // The tensor was a duplicate, so discard the reference.
-          tensor_ref.Unref();
-        }
-      } else {
-        for (int i = 0; i < referenced_tensors_vector_.size(); ++i) {
-          if (referenced_tensors_vector_[i].SharesBufferWith(tensor)) {
-            // tensor is a duplicate, so nothing to do.
-            return;
-          }
-        }
-        referenced_tensors_vector_.push_back(TensorReference(tensor));
-        if (kInVector == referenced_tensors_vector_.size()) {
-          // There are too many tensors to keep using the N^2 algorithm
-          // so start de-duplicating using a set.
-          DCHECK_EQ(0, referenced_tensors_set_.size());
-          // Transfer the refs from the vector to the set.
-          referenced_tensors_set_.reserve(kInVector);
-          referenced_tensors_set_.insert(referenced_tensors_vector_.begin(),
-                                         referenced_tensors_vector_.end());
-          DCHECK_EQ(kInVector, referenced_tensors_set_.size());
-          referenced_tensors_vector_.clear();
-        }
-      }
-    }
-  }
+  void Add(const Tensor& tensor);
 
   // No more references may be added after this is called. The unique
   // references are returning in out_vector.
-  void FreezeAndReturnReferences(TensorReferenceVector* out_vector) {
-    // Prevent any further additions.
-    frozen_ = true;
-    if (referenced_tensors_set_.size() > 0) {
-      DCHECK(referenced_tensors_vector_.empty());
-      out_vector->reserve(referenced_tensors_set_.size());
-      for (const auto& ref : referenced_tensors_set_) {
-        out_vector->push_back(ref);
-      }
-      referenced_tensors_set_.clear();
-    } else {
-      out_vector->reserve(referenced_tensors_vector_.size());
-      for (const auto& ref : referenced_tensors_vector_) {
-        out_vector->push_back(ref);
-      }
-      referenced_tensors_vector_.clear();
-    }
-  }
+  void FreezeAndReturnReferences(TensorReferenceVector* out_vector);
 
  private:
   // Up to kInVector elements are stored in reference_tensors_vector_
@@ -123,9 +64,16 @@ class UniqueTensorReferences {
 
   bool frozen_;
   TensorReferenceVector referenced_tensors_vector_;
-  std::unordered_set<TensorReference, TensorReferenceHashFn,
-                     TensorReferenceEqualFn>
-      referenced_tensors_set_;
+
+  typedef std::unordered_set<TensorReference, TensorReferenceHashFn,
+                             TensorReferenceEqualFn>
+      ReferencedTensorsSet;
+  // Lazily allocated hash set for when the number of tensors becomes too large.
+  // If this is non-NULL, then we use the hash set, otherwise, we use the
+  // referenced_tensors_vector_ (and do O(N^2) work per insertion).
+  ReferencedTensorsSet* referenced_tensors_set_;
+
+  TF_DISALLOW_COPY_AND_ASSIGN(UniqueTensorReferences);
 };
 
 }  // end namespace tensorflow

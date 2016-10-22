@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ limitations under the License.
 
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/resource_mgr.h"
+#include "tensorflow/core/framework/tensor.h"
+#include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/kernels/fifo_queue.h"
 #include "tensorflow/core/kernels/queue_base.h"
@@ -28,10 +30,8 @@ limitations under the License.
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/mutex.h"
-#include "tensorflow/core/platform/port.h"
 #include "tensorflow/core/platform/thread_annotations.h"
-#include "tensorflow/core/public/tensor.h"
-#include "tensorflow/core/public/tensor_shape.h"
+#include "tensorflow/core/platform/types.h"
 
 namespace tensorflow {
 
@@ -50,8 +50,13 @@ class FIFOQueueOp : public QueueOp {
     return [this](QueueInterface** ret) {
       FIFOQueue* queue = new FIFOQueue(capacity_, component_types_,
                                        component_shapes_, cinfo_.name());
-      *ret = queue;
-      return queue->Initialize();
+      Status s = queue->Initialize();
+      if (s.ok()) {
+        *ret = queue;
+      } else {
+        queue->Unref();
+      }
+      return s;
     };
   }
 

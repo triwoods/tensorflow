@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ namespace tensorflow {
 namespace {
 
 TEST(GraphDefBuilderTest, Version) {
-  RequireDefaultOps();
 
   // Verify that our assertions will be nontrivial
   ASSERT_LT(0, TF_GRAPH_DEF_VERSION);
@@ -35,13 +34,16 @@ TEST(GraphDefBuilderTest, Version) {
 
   // Check version when we convert to a Graph
   Graph graph(OpRegistry::Global());
-  EXPECT_OK(builder.ToGraph(&graph));
-  ASSERT_EQ(graph.version(), TF_GRAPH_DEF_VERSION);
+  TF_EXPECT_OK(builder.ToGraph(&graph));
+  ASSERT_EQ(graph.versions().producer(), TF_GRAPH_DEF_VERSION);
+  ASSERT_EQ(graph.versions().min_consumer(), TF_GRAPH_DEF_VERSION_MIN_CONSUMER);
 
   // Check version when we convert to a GraphDef
   GraphDef graph_def;
-  EXPECT_OK(builder.ToGraphDef(&graph_def));
-  ASSERT_EQ(graph_def.version(), TF_GRAPH_DEF_VERSION);
+  TF_EXPECT_OK(builder.ToGraphDef(&graph_def));
+  ASSERT_EQ(graph_def.versions().producer(), TF_GRAPH_DEF_VERSION);
+  ASSERT_EQ(graph_def.versions().min_consumer(),
+            TF_GRAPH_DEF_VERSION_MIN_CONSUMER);
 }
 
 }  // namespace

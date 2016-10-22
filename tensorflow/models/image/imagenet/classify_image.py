@@ -1,4 +1,4 @@
-# Copyright 2015 Google Inc. All Rights Reserved.
+# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,37 +35,17 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import argparse
 import os.path
 import re
 import sys
 import tarfile
 
-# pylint: disable=unused-import,g-bad-import-order
-import tensorflow.python.platform
-from six.moves import urllib
 import numpy as np
+from six.moves import urllib
 import tensorflow as tf
-# pylint: enable=unused-import,g-bad-import-order
 
-from tensorflow.python.platform import gfile
-
-FLAGS = tf.app.flags.FLAGS
-
-# classify_image_graph_def.pb:
-#   Binary representation of the GraphDef protocol buffer.
-# imagenet_synset_to_human_label_map.txt:
-#   Map from synset ID to a human readable string.
-# imagenet_2012_challenge_label_map_proto.pbtxt:
-#   Text representation of a protocol buffer mapping a label to synset ID.
-tf.app.flags.DEFINE_string(
-    'model_dir', '/tmp/imagenet',
-    """Path to classify_image_graph_def.pb, """
-    """imagenet_synset_to_human_label_map.txt, and """
-    """imagenet_2012_challenge_label_map_proto.pbtxt.""")
-tf.app.flags.DEFINE_string('image_file', '',
-                           """Absolute path to image file.""")
-tf.app.flags.DEFINE_integer('num_top_predictions', 5,
-                            """Display this many predictions.""")
+FLAGS = None
 
 # pylint: disable=line-too-long
 DATA_URL = 'http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz'
@@ -96,13 +76,13 @@ class NodeLookup(object):
     Returns:
       dict from integer node ID to human-readable string.
     """
-    if not gfile.Exists(uid_lookup_path):
+    if not tf.gfile.Exists(uid_lookup_path):
       tf.logging.fatal('File does not exist %s', uid_lookup_path)
-    if not gfile.Exists(label_lookup_path):
+    if not tf.gfile.Exists(label_lookup_path):
       tf.logging.fatal('File does not exist %s', label_lookup_path)
 
     # Loads mapping from string UID to human-readable string
-    proto_as_ascii_lines = gfile.GFile(uid_lookup_path).readlines()
+    proto_as_ascii_lines = tf.gfile.GFile(uid_lookup_path).readlines()
     uid_to_human = {}
     p = re.compile(r'[n\d]*[ \S,]*')
     for line in proto_as_ascii_lines:
@@ -113,7 +93,7 @@ class NodeLookup(object):
 
     # Loads mapping from string UID to integer node ID.
     node_id_to_uid = {}
-    proto_as_ascii = gfile.GFile(label_lookup_path).readlines()
+    proto_as_ascii = tf.gfile.GFile(label_lookup_path).readlines()
     for line in proto_as_ascii:
       if line.startswith('  target_class:'):
         target_class = int(line.split(': ')[1])
@@ -138,9 +118,9 @@ class NodeLookup(object):
 
 
 def create_graph():
-  """"Creates a graph from saved GraphDef file and returns a saver."""
+  """Creates a graph from saved GraphDef file and returns a saver."""
   # Creates graph from saved graph_def.pb.
-  with gfile.FastGFile(os.path.join(
+  with tf.gfile.FastGFile(os.path.join(
       FLAGS.model_dir, 'classify_image_graph_def.pb'), 'rb') as f:
     graph_def = tf.GraphDef()
     graph_def.ParseFromString(f.read())
@@ -156,9 +136,9 @@ def run_inference_on_image(image):
   Returns:
     Nothing
   """
-  if not gfile.Exists(image):
+  if not tf.gfile.Exists(image):
     tf.logging.fatal('File does not exist %s', image)
-  image_data = gfile.FastGFile(image, 'rb').read()
+  image_data = tf.gfile.FastGFile(image, 'rb').read()
 
   # Creates graph from saved GraphDef.
   create_graph()
@@ -199,8 +179,7 @@ def maybe_download_and_extract():
       sys.stdout.write('\r>> Downloading %s %.1f%%' % (
           filename, float(count * block_size) / float(total_size) * 100.0))
       sys.stdout.flush()
-    filepath, _ = urllib.request.urlretrieve(DATA_URL, filepath,
-                                             reporthook=_progress)
+    filepath, _ = urllib.request.urlretrieve(DATA_URL, filepath, _progress)
     print()
     statinfo = os.stat(filepath)
     print('Succesfully downloaded', filename, statinfo.st_size, 'bytes.')
@@ -215,4 +194,35 @@ def main(_):
 
 
 if __name__ == '__main__':
+  parser = argparse.ArgumentParser()
+  # classify_image_graph_def.pb:
+  #   Binary representation of the GraphDef protocol buffer.
+  # imagenet_synset_to_human_label_map.txt:
+  #   Map from synset ID to a human readable string.
+  # imagenet_2012_challenge_label_map_proto.pbtxt:
+  #   Text representation of a protocol buffer mapping a label to synset ID.
+  parser.add_argument(
+      '--model_dir',
+      type=str,
+      default='/tmp/imagenet',
+      help="""\
+      Path to classify_image_graph_def.pb,
+      imagenet_synset_to_human_label_map.txt, and
+      imagenet_2012_challenge_label_map_proto.pbtxt.\
+      """
+  )
+  parser.add_argument(
+      '--image_file',
+      type=str,
+      default='',
+      help='Absolute path to image file.'
+  )
+  parser.add_argument(
+      '--num_top_predictions',
+      type=int,
+      default=5,
+      help='Display this many predictions.'
+  )
+  FLAGS = parser.parse_args()
+
   tf.app.run()

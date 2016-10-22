@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@ limitations under the License.
 
 #include "tensorflow/core/common_runtime/gpu/gpu_debug_allocator.h"
 
+#include <vector>
 #include "tensorflow/core/common_runtime/gpu/gpu_init.h"
 #include "tensorflow/core/platform/stream_executor.h"
 
@@ -133,6 +134,10 @@ int64 GPUDebugAllocator::AllocationId(void* ptr) {
   return base_allocator_->AllocationId(static_cast<char*>(ptr) - MASK_BYTES);
 }
 
+void GPUDebugAllocator::GetStats(AllocatorStats* stats) {
+  base_allocator_->GetStats(stats);
+}
+
 bool GPUDebugAllocator::CheckHeader(void* ptr) {
   return CheckMask(stream_exec_, static_cast<char*>(ptr) - MASK_BYTES,
                    before_mask);
@@ -199,6 +204,10 @@ size_t GPUNanResetAllocator::RequestedSize(void* ptr) {
 
 size_t GPUNanResetAllocator::AllocatedSize(void* ptr) {
   return base_allocator_->AllocatedSize(ptr);
+}
+
+void GPUNanResetAllocator::GetStats(AllocatorStats* stats) {
+  base_allocator_->GetStats(stats);
 }
 
 }  // namespace tensorflow

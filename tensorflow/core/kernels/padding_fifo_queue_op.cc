@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,10 @@ limitations under the License.
 #include <vector>
 
 #include "tensorflow/core/framework/op_kernel.h"
+#include "tensorflow/core/framework/partial_tensor_shape.h"
 #include "tensorflow/core/framework/resource_mgr.h"
+#include "tensorflow/core/framework/tensor.h"
+#include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/kernels/padding_fifo_queue.h"
 #include "tensorflow/core/kernels/queue_base.h"
@@ -28,11 +31,8 @@ limitations under the License.
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/mutex.h"
-#include "tensorflow/core/platform/port.h"
 #include "tensorflow/core/platform/thread_annotations.h"
-#include "tensorflow/core/public/partial_tensor_shape.h"
-#include "tensorflow/core/public/tensor.h"
-#include "tensorflow/core/public/tensor_shape.h"
+#include "tensorflow/core/platform/types.h"
 
 namespace tensorflow {
 
@@ -42,8 +42,14 @@ namespace tensorflow {
 // tensor of handles to Queues in the corresponding device.
 class PaddingFIFOQueueOp : public QueueOp {
  public:
-  explicit PaddingFIFOQueueOp(OpKernelConstruction* context) : QueueOp(context) {
+  explicit PaddingFIFOQueueOp(OpKernelConstruction* context)
+      : QueueOp(context) {
     OP_REQUIRES_OK(context, context->GetAttr("shapes", &component_shapes_));
+    for (const auto& shape : component_shapes_) {
+      OP_REQUIRES(context, shape.dims() >= 0,
+                  errors::InvalidArgument("shape ", shape.DebugString(),
+                                          " must have known rank."));
+    }
   }
 
  protected:
@@ -51,8 +57,13 @@ class PaddingFIFOQueueOp : public QueueOp {
     return [this](QueueInterface** ret) {
       PaddingFIFOQueue* queue = new PaddingFIFOQueue(
           capacity_, component_types_, component_shapes_, cinfo_.name());
-      *ret = queue;
-      return queue->Initialize();
+      Status s = queue->Initialize();
+      if (s.ok()) {
+        *ret = queue;
+      } else {
+        queue->Unref();
+      }
+      return s;
     };
   }
 

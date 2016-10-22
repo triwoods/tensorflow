@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ limitations under the License.
 #include "tensorflow/core/lib/io/record_reader.h"
 #include "tensorflow/core/lib/io/record_writer.h"
 #include "tensorflow/core/lib/random/simple_philox.h"
+#include "tensorflow/core/platform/env.h"
 #include "tensorflow/core/platform/test.h"
-#include "tensorflow/core/public/env.h"
 
 namespace tensorflow {
 namespace io {
@@ -115,7 +115,7 @@ class RecordioTest : public ::testing::Test {
 
   void Write(const string& msg) {
     ASSERT_TRUE(!reading_) << "Write() after starting to read";
-    ASSERT_OK(writer_->WriteRecord(StringPiece(msg)));
+    TF_ASSERT_OK(writer_->WriteRecord(StringPiece(msg)));
   }
 
   size_t WrittenBytes() const { return dest_.contents_.size(); }

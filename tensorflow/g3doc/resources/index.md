@@ -20,12 +20,25 @@ endorsed by or otherwise affiliated with Google. When referring to our marks,
 please include the following attribution statement: "TensorFlow, the TensorFlow
 logo and any related marks are trademarks of Google Inc."
 
-### What is TensorFlow used for?
+## What is TensorFlow used for?
+
+TensorFlow enables researchers to build machine learning models. We collect such
+models in our [Zoo](https://github.com/tensorflow/models). If you have built a 
+model with TensorFlow, you may consider publishing it there.
 
 We keep a list of projects that use TensorFlow [here](uses.md). If you made
 something amazing with TensorFlow, we'd like to hear about it!
 
 ## Community
+
+The TensorFlow community has created many great projects around TensorFlow, including:
+
+* [@jtoy's awesome "Awesome TensorFlow" list of awesome things](https://github.com/jtoy/awesome-tensorflow)
+* [TensorFlow tutorials](https://github.com/pkmital/tensorflow_tutorials)
+* [Scikit Flow - Simplified Interface for TensorFlow](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/contrib/learn/python/learn)
+* [Caffe to TensorFlow model converter](https://github.com/ethereon/caffe-tensorflow)
+* [Bitfusion's` GPU-enabled AWS EC2 TensorFlow AMI](https://github.com/bitfusionio/amis/tree/master/awsmrkt-bfboost-ubuntu14-cuda75-tensorflow) ([Launch AMI](https://aws.amazon.com/marketplace/pp/B01EYKBEQ0))
+* [Rust language bindings](https://github.com/google/tensorflow-rust)
 
 ### Development
 
@@ -67,7 +80,8 @@ tracker for that. Instead, direct your questions to
 
 TensorFlow uses [Semantic Versioning 2.0](http://semver.org).  For details on
 the versioning of our public API and binary compatibility, see the [versioning
-document](versions.md).
+document](versions.md).  Additional details for developers are in [TensorFlow
+Data Versioning](data_versions.md).
 
 ## Roadmap
 

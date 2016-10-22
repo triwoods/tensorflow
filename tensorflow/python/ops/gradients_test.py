@@ -1,4 +1,4 @@
-# Copyright 2015 Google Inc. All Rights Reserved.
+# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,31 +20,25 @@ from __future__ import print_function
 
 import warnings
 
-import tensorflow.python.platform
-
 import numpy as np
 import tensorflow as tf
 
+from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import function
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import test_util
-# pylint: disable=unused-import
-from tensorflow.python.ops import array_grad
+from tensorflow.python.framework.constant_op import constant
+from tensorflow.python.ops import array_grad  # pylint: disable=unused-import
 from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import constant_op
-from tensorflow.python.ops import data_flow_grad
-from tensorflow.python.ops import data_flow_ops
+from tensorflow.python.ops import data_flow_grad  # pylint: disable=unused-import
+from tensorflow.python.ops import data_flow_ops  # pylint: disable=unused-import
 from tensorflow.python.ops import gradients
-from tensorflow.python.ops import math_grad
+from tensorflow.python.ops import math_grad  # pylint: disable=unused-import
 from tensorflow.python.ops import math_ops
-from tensorflow.python.ops import nn_grad
-from tensorflow.python.ops import state_grad
-# pylint: enable=unused-import
-from tensorflow.python.ops.constant_op import constant
-# pylint: disable=unused-import
-from tensorflow.python.ops import functional_ops
-# pylint: enable=unused-import
+from tensorflow.python.ops import nn_grad  # pylint: disable=unused-import
+from tensorflow.python.ops import state_grad  # pylint: disable=unused-import
+from tensorflow.python.ops import functional_ops  # pylint: disable=unused-import
 
 from tensorflow.python.ops.nn_ops import bias_add
 from tensorflow.python.platform import googletest
@@ -167,7 +161,7 @@ class GradientsTest(test_util.TensorFlowTestCase):
       with g.device("/gpu:0"):
         wx = math_ops.matmul(w, x)
       gw = gradients.gradients(wx, [w], colocate_gradients_with_ops=True)[0]
-    self.assertEquals("/gpu:0", gw.device)
+    self.assertEqual(gw.op.colocation_groups(), wx.op.colocation_groups())
 
   def testColocateGradientsWithAggregation(self):
     with ops.Graph().as_default() as g:
@@ -179,10 +173,31 @@ class GradientsTest(test_util.TensorFlowTestCase):
       wy = math_ops.matmul(w, y)
       with g.device("/gpu:0"):
         z = wx + wy
+
       gw1 = gradients.gradients(z, [w], colocate_gradients_with_ops=True)[0]
-      self.assertEquals("/gpu:1", gw1.device)
+      self.assertEqual(gw1.op.colocation_groups(), wx.op.colocation_groups())
+
       gw2 = gradients.gradients(z, [w], colocate_gradients_with_ops=False)[0]
-      self.assertEquals(None, gw2.device)
+      self.assertTrue(wx.op.colocation_groups() != gw2.op.colocation_groups())
+
+  def testColocateGradientsWithAggregationInMultipleDevices(self):
+    with ops.Graph().as_default() as g:
+      with g.device("/gpu:1"):
+        w = constant(1.0, shape=[1, 1])
+      x = constant(1.0, shape=[1, 2])
+      y = constant(1.0, shape=[1, 2])
+      with g.device("/task:1"):
+        wx = math_ops.matmul(w, x)
+      with g.device("/task:2"):
+        wy = math_ops.matmul(w, y)
+      with g.device("/gpu:0"):
+        z = wx + wy
+
+      gw1 = gradients.gradients(z, [w], colocate_gradients_with_ops=True)[0]
+      self.assertEqual(gw1.op.colocation_groups(), w.op.colocation_groups())
+
+      gw2 = gradients.gradients(z, [w], colocate_gradients_with_ops=False)[0]
+      self.assertTrue(w.op.colocation_groups() != gw2.op.colocation_groups())
 
   def testBoundaryStop(self):
     # Test that we don't differentiate 'x'. The gradient function for 'x' is
@@ -194,7 +209,7 @@ class GradientsTest(test_util.TensorFlowTestCase):
       y = x + 1.0
       z = y + 1
       grads = gradients.gradients(z, [x])
-      self.assertTrue(all([x for x in grads]))
+      self.assertTrue(all(x is not None for x in grads))
 
   def testBoundaryContinue(self):
     # Test that we differentiate both 'x' and 'y' correctly when x is a
@@ -204,7 +219,7 @@ class GradientsTest(test_util.TensorFlowTestCase):
       y = x * 2.0
       z = y * 3.0
       grads = gradients.gradients(z, [x, y])
-      self.assertTrue(all([x for x in grads]))
+      self.assertTrue(all(x is not None for x in grads))
       self.assertEqual(6.0, grads[0].eval())
 
   def testAggregationMethodAccumulateN(self):
@@ -217,7 +232,7 @@ class GradientsTest(test_util.TensorFlowTestCase):
           [x, y],
           aggregation_method=
           gradients.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N)
-      self.assertTrue(all([x for x in grads]))
+      self.assertTrue(all(x is not None for x in grads))
       self.assertEqual(20.0, grads[0].eval())
       self.assertEqual(10.0, grads[1].eval())
 
@@ -230,7 +245,7 @@ class GradientsTest(test_util.TensorFlowTestCase):
           z,
           [x, y],
           aggregation_method=gradients.AggregationMethod.ADD_N)
-      self.assertTrue(all([x for x in grads]))
+      self.assertTrue(all(x is not None for x in grads))
       self.assertEqual(20.0, grads[0].eval())
       self.assertEqual(10.0, grads[1].eval())
 
@@ -243,7 +258,7 @@ class GradientsTest(test_util.TensorFlowTestCase):
           z,
           [x, y],
           aggregation_method=gradients.AggregationMethod.EXPERIMENTAL_TREE)
-      self.assertTrue(all([x for x in grads]))
+      self.assertTrue(all(x is not None for x in grads))
       self.assertEqual(20.0, grads[0].eval())
       self.assertEqual(10.0, grads[1].eval())
 
@@ -264,6 +279,18 @@ class GradientsTest(test_util.TensorFlowTestCase):
       grads = gradients.gradients(z, [c])
       self.assertTrue(isinstance(grads[0], ops.Tensor))
 
+  def testSingletonIndexedSlices(self):
+    with ops.Graph().as_default():
+      x = tf.placeholder(tf.float32)
+      y = tf.identity(x)
+      dy = tf.IndexedSlices(tf.placeholder(tf.float32),
+                            tf.placeholder(tf.int32))
+      dx, = gradients.gradients(y, x, grad_ys=dy)
+      # The gradient of tf.identity should pass the value through unchanged.
+      # A previous version of the code did this only for tf.Tensor, not
+      # tf.IndexedSlices.
+      self.assertEqual(dx, dy)
+
 
 class FunctionGradientsTest(test_util.TensorFlowTestCase):
 
@@ -271,23 +298,44 @@ class FunctionGradientsTest(test_util.TensorFlowTestCase):
   def XSquarePlusB(cls, x, b):
     return x * x + b
 
+  @classmethod
+  def XSquarePlusBGradient(cls, x, b, g):
+    # Perturb gradients (multiply by 2), so we can test that this was called.
+    g *= 2.0
+    return g * 2.0 * x, g
+
+  @classmethod
+  def _PythonGradient(cls, op, grad):
+    # Perturb gradients (multiply by 3), so we can test that this was called.
+    grad *= 3.0
+    return grad * op.inputs[0] * 2.0, grad
+
+  @classmethod
+  def _GetFunc(cls, **kwargs):
+    return function.Defun(tf.float32, tf.float32, **kwargs)(
+        cls.XSquarePlusB)
+
+  def _GetFuncGradients(self, f, x_value, b_value):
+    x = tf.constant(x_value, name="x")
+    b = tf.constant(b_value, name="b")
+
+    y = f(x, b)
+    grads = gradients.gradients(y, [x, b])
+    with self.test_session() as sess:
+      return sess.run(grads)
+
   def testFunctionGradientsBasic(self):
     g = ops.Graph()
     with g.as_default():
-      f = function.Defun(x=tf.float32, b=tf.float32)(self.XSquarePlusB)
-      x = tf.constant([2.0], name="x")
-      b = tf.constant([1.0], name="b")
-
-      y = f(x, b)
-      # Build gradient graph (should add SymbolicGradient node for function).
-      grads = gradients.gradients(y, [x, b])
-      with self.test_session() as sess:
-        self.assertAllEqual([4.0], sess.run(grads)[0])
-        self.assertAllEqual([1.0], sess.run(grads)[1])
+      f = self._GetFunc()
+      # Get gradients (should add SymbolicGradient node for function).
+      grads = self._GetFuncGradients(f, [2.0], [1.0])
+      self.assertAllEqual([4.0], grads[0])
+      self.assertAllEqual([1.0], grads[1])
 
   def testFunctionGradientsComposition(self):
     with ops.Graph().as_default():
-      f = function.Defun(x=tf.float32, b=tf.float32)(self.XSquarePlusB)
+      f = self._GetFunc()
       x = tf.constant([2.0], name="x")
       b1 = tf.constant([1.0], name="b1")
       b2 = tf.constant([1.0], name="b2")
@@ -299,6 +347,38 @@ class FunctionGradientsTest(test_util.TensorFlowTestCase):
       with self.test_session() as sess:
         self.assertAllEqual([40.0], sess.run(grads)[0])
         self.assertAllEqual([10.0], sess.run(grads)[1])
+
+  def testFunctionGradientsWithGradFunc(self):
+    g = ops.Graph()
+    with g.as_default():
+      grad_func = function.Defun(tf.float32, tf.float32, tf.float32)(
+          self.XSquarePlusBGradient)
+      f = self._GetFunc(grad_func=grad_func)
+      # Get gradients (should add SymbolicGradient node for function, which
+      # uses the grad_func above, which multiplies all gradients by 2).
+      grads = self._GetFuncGradients(f, [2.0], [1.0])
+      self.assertAllEqual([4.0 * 2], grads[0])
+      self.assertAllEqual([1.0 * 2], grads[1])
+
+  def testFunctionGradientWithRegistration(self):
+    g = ops.Graph()
+    with g.as_default():
+      f = self._GetFunc(python_grad_func=self._PythonGradient)
+      # Get gradients, using the python gradient function. It multiplies the
+      # gradients by 3.
+      grads = self._GetFuncGradients(f, [2.0], [1.0])
+      self.assertAllEqual([4.0 * 3], grads[0])
+      self.assertAllEqual([1.0 * 3], grads[1])
+
+  def testFunctionGradientWithGradFuncAndRegistration(self):
+    g = ops.Graph()
+    with g.as_default():
+      grad_func = function.Defun(tf.float32, tf.float32, tf.float32)(
+          self.XSquarePlusBGradient)
+      with self.assertRaisesRegexp(ValueError, "Gradient defined twice"):
+        f = self._GetFunc(grad_func=grad_func,
+                          python_grad_func=self._PythonGradient)
+        f.add_to_graph(tf.Graph())
 
 
 class StopGradientTest(test_util.TensorFlowTestCase):

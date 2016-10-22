@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -300,11 +300,11 @@ static void MergeDevNamesHelperImpl(const string& name_a, const string& name_b,
                                     const string& expected_merge_name,
                                     bool allow_soft_placement) {
   DeviceNameUtils::ParsedName target_a = Name(name_a);
-  EXPECT_OK(DeviceNameUtils::MergeDevNames(&target_a, Name(name_b),
-                                           allow_soft_placement));
+  TF_EXPECT_OK(DeviceNameUtils::MergeDevNames(&target_a, Name(name_b),
+                                              allow_soft_placement));
   DeviceNameUtils::ParsedName target_b = Name(name_b);
-  EXPECT_OK(DeviceNameUtils::MergeDevNames(&target_b, Name(name_a),
-                                           allow_soft_placement));
+  TF_EXPECT_OK(DeviceNameUtils::MergeDevNames(&target_b, Name(name_a),
+                                              allow_soft_placement));
   EXPECT_EQ(target_a, target_b);
   EXPECT_EQ(target_a, Name(expected_merge_name));
   EXPECT_EQ(target_b, Name(expected_merge_name));

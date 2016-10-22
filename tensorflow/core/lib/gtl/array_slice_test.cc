@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,8 +23,8 @@ limitations under the License.
 #include "tensorflow/core/lib/gtl/inlined_vector.h"
 #include "tensorflow/core/lib/gtl/stl_util.h"
 #include "tensorflow/core/platform/macros.h"
-#include "tensorflow/core/platform/port.h"
 #include "tensorflow/core/platform/test.h"
+#include "tensorflow/core/platform/types.h"
 
 namespace tensorflow {
 namespace gtl {
@@ -528,7 +528,7 @@ TEST(MutableIntSlice, InlinedVectorConversion) {
     }
     MutableIntSlice v = &inline_vec;  // Test assignment
     static_cast<void>(v);
-    TestImplicitConversion(&inline_vec, inline_vec.array(), inline_vec.size());
+    TestImplicitConversion(&inline_vec, inline_vec.data(), inline_vec.size());
   }
 }
 
@@ -655,6 +655,10 @@ TEST(MutableCharSlice, StringConversion) {
   // since in that case both overloads would be feasible.
   string str;
   EXPECT_TRUE(TestMutableOverload(&str));
+
+  // Avoid warning "unused function 'TestMutableOverload'"
+  int a[1];
+  EXPECT_FALSE(TestMutableOverload(a));
 }
 
 }  // namespace

@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,11 +16,13 @@ limitations under the License.
 #ifndef TENSORFLOW_LIB_STRINGS_STR_UTIL_H_
 #define TENSORFLOW_LIB_STRINGS_STR_UTIL_H_
 
+#include <functional>
 #include <string>
+#include <vector>
 #include "tensorflow/core/lib/core/stringpiece.h"
 #include "tensorflow/core/lib/gtl/array_slice.h"
 #include "tensorflow/core/lib/strings/strcat.h"
-#include "tensorflow/core/platform/port.h"
+#include "tensorflow/core/platform/types.h"
 
 // Basic string utility routines
 namespace tensorflow {
@@ -38,11 +40,6 @@ string CEscape(const string& src);
 //
 // NOTE: Does not support \u or \U!
 bool CUnescape(StringPiece source, string* dest, string* error);
-
-// If "text" can be successfully parsed as the ASCII representation of
-// an integer, sets "*val" to the value and returns true.  Otherwise,
-// returns false.
-bool NumericParse32(const string& text, int32* val);
 
 // Removes any trailing whitespace from "*s".
 void StripTrailingWhitespace(string* s);
@@ -74,6 +71,10 @@ bool ConsumeNonWhitespace(StringPiece* s, StringPiece* val);
 // Otherwise, return false.
 bool ConsumePrefix(StringPiece* s, StringPiece expected);
 
+// If "*s" ends with "expected", remove it and return true.
+// Otherwise, return false.
+bool ConsumeSuffix(StringPiece* s, StringPiece expected);
+
 // Return lower-cased version of s.
 string Lowercase(StringPiece s);
 
@@ -87,6 +88,12 @@ void TitlecaseString(string* s, StringPiece delimiters);
 // Join functionality
 template <typename T>
 string Join(const T& s, const char* sep);
+
+// A variant of Join where for each element of "s", f(&dest_string, elem)
+// is invoked (f is often constructed with a lambda of the form:
+//   [](string* result, ElemType elem)
+template <typename T, typename Formatter>
+string Join(const T& s, const char* sep, Formatter f);
 
 struct AllowEmpty {
   bool operator()(StringPiece sp) const { return true; }
@@ -110,6 +117,8 @@ std::vector<string> Split(StringPiece text, char delim, Predicate p);
 // to "*result" and returns true.  Otherwise returns false.
 bool SplitAndParseAsInts(StringPiece text, char delim,
                          std::vector<int32>* result);
+bool SplitAndParseAsInts(StringPiece text, char delim,
+                         std::vector<int64>* result);
 
 // ------------------------------------------------------------------
 // Implementation details below
@@ -124,6 +133,30 @@ string Join(const T& s, const char* sep) {
   return result;
 }
 
+template <typename T>
+class Formatter {
+ public:
+  Formatter(std::function<void(string*, T)> f) : f_(f) {}
+  void operator()(string* out, const T& t) { f_(out, t); }
+
+ private:
+  std::function<void(string*, T)> f_;
+};
+
+template <typename T, typename Formatter>
+string Join(const T& s, const char* sep, Formatter f) {
+  string result;
+  bool first = true;
+  for (const auto& x : s) {
+    if (!first) {
+      result.append(sep);
+    }
+    f(&result, x);
+    first = false;
+  }
+  return result;
+}
+
 inline std::vector<string> Split(StringPiece text, char delim) {
   return Split(text, delim, AllowEmpty());
 }
@@ -131,9 +164,9 @@ inline std::vector<string> Split(StringPiece text, char delim) {
 template <typename Predicate>
 std::vector<string> Split(StringPiece text, char delim, Predicate p) {
   std::vector<string> result;
-  int token_start = 0;
+  size_t token_start = 0;
   if (!text.empty()) {
-    for (int i = 0; i < text.size() + 1; i++) {
+    for (size_t i = 0; i < text.size() + 1; i++) {
       if ((i == text.size()) || (text[i] == delim)) {
         StringPiece token(text.data() + token_start, i - token_start);
         if (p(token)) {

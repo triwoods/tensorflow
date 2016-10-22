@@ -1,4 +1,4 @@
-/* Copyright 2015 Google Inc. All Rights Reserved.
+/* Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,6 +36,9 @@ class PartialTensorShapeIter;  // Declared below
 /// Manages the partially known dimensions of a Tensor and their sizes.
 class PartialTensorShape {
  public:
+  /// \brief Construct an unknown `PartialTensorShape`.
+  PartialTensorShape() : is_unknown_(true) {}
+
   /// \brief Construct a `PartialTensorShape` from the provided sizes.
   /// REQUIRES: `dim_sizes[i] >= 0`
   explicit PartialTensorShape(gtl::ArraySlice<int64> dim_sizes);
@@ -67,8 +70,9 @@ class PartialTensorShape {
   Status MergeWith(const PartialTensorShape& shape,
                    PartialTensorShape* result) const;
 
-  /// Return the number of dimensions in the tensor.
-  int dims() const { return dim_sizes_.size(); }
+  /// Return the number of dimensions in the tensor. If the number of
+  /// dimensions is unknown, return -1.
+  int dims() const { return is_unknown_ ? -1 : dim_sizes_.size(); }
 
   /// Return true iff the rank and all of the dimensions are well defined
   bool IsFullyDefined() const;
@@ -85,8 +89,12 @@ class PartialTensorShape {
   /// REQUIRES: `0 <= d < dims()`
   int64 dim_size(int d) const {
     DCHECK_GE(d, 0);
-    DCHECK_LT(d, dims());
-    return dim_sizes_[d];
+    if (is_unknown_) {
+      return -1;
+    } else {
+      DCHECK_LT(d, dims());
+      return dim_sizes_[d];
+    }
   }
 
   /// Returns sizes of all dimensions.
@@ -108,61 +116,25 @@ class PartialTensorShape {
   /// \brief Returns a `PartialTensorShape` whose dimensions are
   /// `dims[0]`, `dims[1]`, ..., `dims[n-1]`.  Values of -1 are
   /// considered "unknown".
-  template <typename T>
-  static Status MakePartialShape(const T* dims, int n, PartialTensorShape* out);
+  static Status MakePartialShape(const int32* dims, int n,
+                                 PartialTensorShape* out);
+  static Status MakePartialShape(const int64* dims, int n,
+                                 PartialTensorShape* out);
 
  private:
-  /// Create a tensor shape.
-  PartialTensorShape();
-
+  bool is_unknown_;
   gtl::InlinedVector<int64, 4> dim_sizes_;
 };
-
-template <typename T>
-Status PartialTensorShape::MakePartialShape(const T* dims, int n,
-                                            PartialTensorShape* out) {
-  *out = PartialTensorShape();
-  out->dim_sizes_.reserve(n);
-  for (int i = 0; i < n; ++i) {
-    if (dims[i] >= -1) {
-      out->dim_sizes_.push_back(dims[i]);
-    } else {
-      return errors::InvalidArgument("Dimension ", dims[i], " must be >= -1");
-    }
-  }
-  return Status::OK();
-}
 
 /// \brief Static helper routines for `PartialTensorShape`. Includes a few
 /// common predicates on a partially known tensor shape.
 class PartialTensorShapeUtils {
  public:
   static string PartialShapeListString(
-      const gtl::ArraySlice<PartialTensorShape>& shapes) {
-    string result = "[";
-    bool first = true;
-    for (const PartialTensorShape& shape : shapes) {
-      strings::StrAppend(&result, (first ? "" : ", "), shape.DebugString());
-      first = false;
-    }
-    strings::StrAppend(&result, "]");
-    return result;
-  }
+      const gtl::ArraySlice<PartialTensorShape>& shapes);
 
-  static bool AreCompatible(
-      const gtl::ArraySlice<PartialTensorShape>& shapes0,
-      const gtl::ArraySlice<PartialTensorShape>& shapes1) {
-    if (shapes0.size() == shapes1.size()) {
-      for (int i = 0; i < shapes0.size(); ++i) {
-        if (!shapes0[i].IsCompatibleWith(shapes1[i])) {
-          return false;
-        }
-      }
-      return true;
-    } else {
-      return false;
-    }
-  }
+  static bool AreCompatible(const gtl::ArraySlice<PartialTensorShape>& shapes0,
+                            const gtl::ArraySlice<PartialTensorShape>& shapes1);
 };
 
 }  // namespace tensorflow

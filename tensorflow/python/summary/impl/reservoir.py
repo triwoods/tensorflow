@@ -1,4 +1,4 @@
-# Copyright 2015 Google Inc. All Rights Reserved.
+# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ class Reservoir(object):
       raise ValueError('size must be nonegative integer, was %s' % size)
     self._buckets = collections.defaultdict(
         lambda: _ReservoirBucket(size, random.Random(seed)))
-    # _mutex guards the keys - creating new keys, retreiving by key, etc
+    # _mutex guards the keys - creating new keys, retrieving by key, etc
     # the internal items are guarded by the ReservoirBuckets' internal mutexes
     self._mutex = threading.Lock()
 
@@ -117,18 +117,26 @@ class Reservoir(object):
       bucket = self._buckets[key]
     bucket.AddItem(item)
 
-  def FilterItems(self, filterFn):
+  def FilterItems(self, filterFn, key=None):
     """Filter items within a Reservoir, using a filtering function.
 
     Args:
       filterFn: A function that returns True for the items to be kept.
+      key: An optional bucket key to filter. If not specified, will filter all
+        all buckets.
 
     Returns:
       The number of items removed.
     """
     with self._mutex:
-      return sum(bucket.FilterItems(filterFn)
-                 for bucket in self._buckets.values())
+      if key:
+        if key in self._buckets:
+          return self._buckets[key].FilterItems(filterFn)
+        else:
+          return 0
+      else:
+        return sum(bucket.FilterItems(filterFn)
+                   for bucket in self._buckets.values())
 
 
 class _ReservoirBucket(object):
@@ -223,4 +231,4 @@ class _ReservoirBucket(object):
   def Items(self):
     """Get all the items in the bucket."""
     with self._mutex:
-      return self.items
+      return list(self.items)
